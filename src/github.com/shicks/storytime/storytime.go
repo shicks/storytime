@@ -16,16 +16,12 @@ func init() {
 }
 
 func root(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, guestbookForm)
+	err := rootTmpl.Execute(w, "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
-
-const guestbookForm = `
-<!DOCTYPE html>
-<form action="/sign" method="post">
-<div><textarea name="content" rots="3" cols="60"></textarea></div>
-<div><input type="submit" value="Sign"></div>
-</form>
-`
+var rootTmpl = template.Must(template.ParseFiles("src/github.com/shicks/storytime/root.html"))
 
 func sign(w http.ResponseWriter, r *http.Request) {
 	err := signTemplate.Execute(w, r.FormValue("content"))
@@ -33,13 +29,11 @@ func sign(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
-
-var signTemplate = template.Must(template.New("sign").Parse(signTemplateHTML))
-const signTemplateHTML = `
+var signTemplate = template.Must(template.New("sign").Parse(`
 <!DOCTYPE html>
 <p>You wrote:</p>
 <pre>{{.}}</pre>
-`
+`))
 
 func hello(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
