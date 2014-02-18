@@ -1,0 +1,63 @@
+{{define "head"}}
+<!DOCTYPE html>
+<link rel="stylesheet" href="/static/storytime.css">
+<div class="topright">
+  <a href="http://github.com/shicks/storytime">Github project</a>
+</div>
+{{end}}
+
+{{define "root"}}
+  <h1>Storytime</h1>
+  {{template "completed" .CompletedStories}}
+  {{template "continue" .CurrentStory}}
+
+  <h2>Begin A New Story</h2>
+  {{if .LoginLink}}
+    <p>You must be <a href="{{.LoginLink}}">logged in</a> to begin a story.</p>
+  {{else}}
+    <div class="new-story">
+      <form action="/begin" method="post">
+        <div class="authors">
+          Authors:
+          <br/>
+          <textarea name="authors" rows="5" cols="40"
+                    placeholder="Please list email addresses of the authors, one per line. (Remember to include your own.)"></textarea>
+        </div>
+        <div class="word-count">
+          Word Count: <input type="text" name="words" value="450" size="4">
+        </div>
+        <input type="submit" value="Begin Story">
+      </form>
+    </div>
+  {{end}}
+{{end}}
+
+{{/* param: completedParams */}}
+{{define "completed"}}
+  {{if .Stories}}
+    <h2>Completed Stories</h2>
+  {{end}}
+{{end}}
+
+{{/* param: *Story */}}
+{{define "continue"}}
+  {{if .}}
+    {{with $part := .Parts | last}}
+      <h2>Continue A Story</h2>
+      <div class="last-story">
+        <div class="metadata">
+          <span class="written-by">Written by <span class="author">{{$part.Author}}</span></span>
+          <span class="written-at">at <span class="time">{{$part.Written}}</span>></span>
+        </div>
+        <div class="last-line">
+          {{$part.Visible}}
+        </div>
+      </div>
+      <form action="/continue" method="post">
+        <textarea name="content" rows="5" cols="80"
+                  placeholder="Please continue the story.  Anything on the last line (up to 16 words) will be visible to the next author."></textarea>
+        <input type="submit" value="Submit">
+      </form>
+    {{end}}
+  {{end}}
+{{end}}

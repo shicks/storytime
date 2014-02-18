@@ -4,5 +4,8 @@ runtime: go
 api_version: go1
 
 handlers:
+  - url: /static/(.*)
+    static_files: src/github.com/shicks/storytime/\1
+    upload: src/github.com/shicks/storytime/(.*\.css)
   - url: /.*
     script: _go_app
