@@ -1,16 +1,38 @@
 package storytime
 
 import (
+	"fmt"
 	"html/template"
 	"net/http"
+	"reflect"
 )
 
-func execute(w http.ResponseWriter, name string, data interface{}) *appError {
-	err := tmpl.ExecuteTemplate(w, name, data)
+type templateResponse struct {
+	name string
+	data interface{}
+}
+
+func (r templateResponse) Write(w http.ResponseWriter) {
+	err := tmpl.ExecuteTemplate(w, r.name, r.data)
 	if err != nil {
-		return &appError{err, "Failed to render template", http.StatusInternalServerError}
+		panic(&appError{err, "Failed to render template", http.StatusInternalServerError})
 	}
-	return nil
+}
+
+func execute(data interface{}) response {
+	typ := reflect.TypeOf(data)
+	if typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+	}
+	field, found := typ.FieldByName("TemplateName")
+	if !found {
+		panic(fmt.Errorf("Invalid data type for template: %v", data))
+	}
+	name := field.Tag.Get("template")
+	if name == "" {
+		panic(fmt.Errorf("Invalid data type for template: %v", data))
+	}
+	return templateResponse{name, data}
 }
 
 var tmpl = template.Must(template.New("template").
@@ -30,14 +52,15 @@ func first(slice []interface{}) interface{} {
 	return slice[0]
 }
 
-type completedParams struct {
+type completedTemplate struct {
 	Stories []Story
 	// TODO(sdh): pagination
 }
 
-type rootParams struct {
+type rootTemplate struct {
+	TemplateName     interface{} `template:"root"`
 	LoginLink        string
 	User             string
-	CompletedStories *completedParams
+	CompletedStories *completedTemplate
 	CurrentStory     *Story
 }

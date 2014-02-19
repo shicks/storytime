@@ -42,18 +42,19 @@ func currentPart(c appengine.Context, id string) (*Story, *StoryPart) {
 		Ancestor(k).
 		Order("-Written").
 		Limit(1)
+
 	var part []StoryPart
 	if _, err := q.GetAll(c, &part); err != nil {
 		panic(&appError{err, "Failed to fetch current story part", 500})
+	} else if len(part) == 0 {
+		return nil, nil
 	}
-	if len(part) > 0 {
-		var story = new(Story)
-		if err := datastore.Get(c, k, story); err != nil {
-			panic(&appError{err, "Failed to fetch story", 500})
-		}
-		return story, &part[0]
+
+	var story = new(Story)
+	if err := datastore.Get(c, k, story); err != nil {
+		panic(&appError{err, "Failed to fetch story", 500})
 	}
-	return nil, nil
+	return story, &part[0]
 }
 
 // TODO(sdh): allow logged-in (or via email) users to set their name
@@ -62,7 +63,7 @@ func currentPart(c appengine.Context, id string) (*Story, *StoryPart) {
 //    - how to inject the cache? (may not need to - just use context)
 // TODO(sdh): support pagination and per-user?
 // TODO(sdh): search service for fulltext story search
-func completedStories(c appengine.Context) *completedParams {
+func completedStories(c appengine.Context) *completedTemplate {
 	q := datastore.NewQuery("Story").
 		Filter("Complete =", true).
 		Order("-Finished").
@@ -71,7 +72,7 @@ func completedStories(c appengine.Context) *completedParams {
 	if _, err := q.GetAll(c, &stories); err != nil {
 		panic(err)
 	}
-	return &completedParams{stories}
+	return &completedTemplate{stories}
 }
 
 func randomString(l int) string {
