@@ -35,21 +35,15 @@ func execute(data interface{}) response {
 }
 
 var tmpl = template.Must(template.New("template").
-	Funcs(fmap).
 	ParseFiles("src/github.com/shicks/storytime/template.html"))
 
-var fmap = template.FuncMap{
-	"last":  last,
-	"first": first,
-}
-
-func last(slice []interface{}) interface{} {
-	return slice[len(slice)-1]
-}
-
-func first(slice []interface{}) interface{} {
-	return slice[0]
-}
+// TODO(sdh): Rather than displaying everything on the start page,
+// we should split it up.  This will also help with refreshes (i.e.
+// when redirecting back to the same page, the initial view is stale).
+// Instead, upon navigating to /, redirect to /story/1/foo if there
+// is work to do, and provide links at the bottom/top for 'begin'
+// or 'completed', etc.  If no story is ongoing, redirect to recently
+// completed stories (with snippets of the first few lines).
 
 type completedTemplate struct {
 	Stories []Story
@@ -57,13 +51,12 @@ type completedTemplate struct {
 }
 
 type continuePage struct {
-	CurrentPart *StoryPart
+	CurrentStory *Story
 }
 
 type rootPage struct {
 	LoginLink        string
 	User             string
 	CompletedStories *completedTemplate
-	CurrentPart      *StoryPart
-	//CurrentStories   []Story
+	CurrentStory     *Story
 }

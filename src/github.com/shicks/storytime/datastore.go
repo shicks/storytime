@@ -3,7 +3,6 @@ package storytime
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/binary"
 	"fmt"
 	"net/http"
 	"net/mail"
@@ -15,17 +14,14 @@ import (
 	"appengine/user"
 )
 
-// TODO - THIS IS BROKEN
-//  - it returns parts that are no longer current...
-//  - we need to either (1) re-store the previous part
-//    with a "no longer open" flag set, or else (2)
-//    update the story with a nextAuthor and modTime
-func currentStoryPart(c appengine.Context, u user.User) *StoryPart {
-	q := datastore.NewQuery("StoryPart").
+// Retrieves the current story for the given user.
+func currentStory(c appengine.Context, u user.User) *Story {
+	q := datastore.NewQuery("Story").
+		Filter("Complete =", false).
 		Filter("NextAuthor =", u.Email).
-		Order("Written"). // TODO(sdh): what about kicks/skips? - can that mis-sequence?
-		Limit(1)          // TODO(sdh): don't limit so we can count?
-	var result []StoryPart
+		Order("Modified"). // TODO(sdh): what about kicks/skips? - can that mis-sequence?
+		Limit(1)           // TODO(sdh): don't limit so we can count?
+	var result []Story
 	if _, err := q.GetAll(c, &result); err != nil {
 		panic(&appError{err, "Failed to fetch current story", 500})
 	}
@@ -35,26 +31,14 @@ func currentStoryPart(c appengine.Context, u user.User) *StoryPart {
 	return nil
 }
 
-// Retreives the most recent part of the given story.
-func currentPart(c appengine.Context, id string) (*Story, *StoryPart) {
+// Retrieves a story by ID.
+func fetchStory(c appengine.Context, id string) *Story {
 	k := datastore.NewKey(c, "Story", id, 0, nil)
-	q := datastore.NewQuery("StoryPart").
-		Ancestor(k).
-		Order("-Written").
-		Limit(1)
-
-	var part []StoryPart
-	if _, err := q.GetAll(c, &part); err != nil {
-		panic(&appError{err, "Failed to fetch current story part", 500})
-	} else if len(part) == 0 {
-		return nil, nil
-	}
-
 	var story = new(Story)
 	if err := datastore.Get(c, k, story); err != nil {
 		panic(&appError{err, "Failed to fetch story", 500})
 	}
-	return story, &part[0]
+	return story
 }
 
 // TODO(sdh): allow logged-in (or via email) users to set their name
@@ -75,6 +59,7 @@ func completedStories(c appengine.Context) *completedTemplate {
 	return &completedTemplate{stories}
 }
 
+// Generates a random string of lowercase letters and numbers of the given length.
 func randomString(l int) string {
 	b := make([]byte, 2*l)
 	rand.Read(b)
@@ -86,6 +71,7 @@ func randomString(l int) string {
 	if len(s) > l {
 		s = s[:l]
 	}
+	// TODO(sdh): if the length is too short, add more.
 	return s
 }
 
@@ -119,25 +105,6 @@ func putShortKey(c appengine.Context, kind string, data hasId, parent *datastore
 	return nil, e
 }
 
-func rev(x int64) int64 {
-	var y int64
-	y = 0
-	for i := 0; i < 56; i++ {
-		y <<= 1
-		y += x % 2
-		x >>= 1
-	}
-	return y
-}
-
-func encodeInt(x int64) string {
-	// x is a 56-bit int, we want to reverse the bit order
-	y := rev(x)
-	b := make([]byte, 10)
-	l := binary.PutVarint(b, y)
-	return base64.URLEncoding.EncodeToString(b[:l])
-}
-
 // Makes a new story and saves it to the datastore.
 // Returns the ID.
 func newStory(c appengine.Context, authors []*mail.Address, words int) string {
@@ -148,36 +115,25 @@ func newStory(c appengine.Context, authors []*mail.Address, words int) string {
 	//key := datastore.NewIncompleteKey(c, "Story", nil)
 	u := user.Current(c)
 	addrs := make([]string, len(authors))
-	//parts := make([]StoryPart, 0)
+	parts := make([]StoryPart, 0)
 	for i, author := range authors {
 		addrs[i] = author.Address
 	}
 	now := time.Now()
 	story := &Story{
-		Created: now,
-		Creator: u.Email,
-		//NextId:     nextId,
-		//NextAuthor: addrs[0],
-		Authors: addrs,
-		//Modified: time.Now(),
-		//Parts: parts,
-		Words: words,
+		Created:    now,
+		Creator:    u.Email,
+		NextId:     randomString(8),
+		NextAuthor: addrs[0],
+		Modified:   now,
+		Complete:   false,
+		Parts:      parts,
+		Authors:    addrs,
+		Words:      words,
 	}
 	key, err := putShortKey(c, "Story", story, nil, 3)
 	if err != nil {
 		panic(&appError{err, "Failed to put story in datastore", http.StatusInternalServerError})
-	}
-	part := &StoryPart{
-		Story:      key.StringID(),
-		Hidden:     "",
-		Visible:    "",
-		Written:    now,
-		Author:     u.Email,
-		NextAuthor: addrs[0],
-	}
-	_, err = putShortKey(c, "StoryPart", part, key, 8)
-	if err != nil {
-		panic(&appError{err, "Failed to put first part in datastore", http.StatusInternalServerError})
 	}
 	return key.StringID()
 }
@@ -195,13 +151,17 @@ func findNextAuthor(authors []string, author string) string {
 
 // Makes a new story and saves it to the datastore.  Panics in case of
 // an error.
-func savePart(c appengine.Context, story *Story, prev *StoryPart, text string) {
+func savePart(c appengine.Context, story *Story, text string) {
 	maxVisible := 16
 	var part StoryPart
-	part.Story = story.Id
-	part.Author = prev.NextAuthor
-	part.NextAuthor = findNextAuthor(story.Authors, prev.NextAuthor)
-	part.Written = time.Now()
+	now := time.Now()
+
+	part.Id = story.NextId
+	story.NextId = randomString(8)
+	part.Author = story.NextAuthor
+	story.NextAuthor = findNextAuthor(story.Authors, story.NextAuthor)
+	part.Written = now
+	story.Modified = now
 	// Sanitize the text
 	lines := SplitterOnAny("\n\r").TrimResults().OmitEmpty().SplitToList(text)
 	if len(lines) < 1 {
@@ -219,15 +179,19 @@ func savePart(c appengine.Context, story *Story, prev *StoryPart, text string) {
 	}
 	part.Hidden = strings.Join(wordSplitter.SplitToList(hidden), " ")
 	part.Visible = visible
+	story.Parts = append(story.Parts, part)
+	if story.WordCount() >= story.Words {
+		story.Complete = true
+	}
 	storyKey := datastore.NewKey(c, "Story", story.Id, 0, nil)
-	_, err := putShortKey(c, "StoryPart", &part, storyKey, 8)
+	_, err := datastore.Put(c, storyKey, story)
 	if err != nil {
-		panic(&appError{err, "Failed to put part in datastore", http.StatusInternalServerError})
+		panic(&appError{err, "Failed to write story to datastore", http.StatusInternalServerError})
 	}
 }
 
 func clearKind(c appengine.Context, kind string) {
-	q := datastore.NewQuery("Story").KeysOnly()
+	q := datastore.NewQuery(kind).KeysOnly()
 	var keys []*datastore.Key
 	if _, err := q.GetAll(c, &keys); err != nil {
 		panic(&appError{err, "Failed to fetch all " + kind, 500})
@@ -239,5 +203,4 @@ func clearKind(c appengine.Context, kind string) {
 
 func clearDatastore(c appengine.Context) {
 	clearKind(c, "Story")
-	clearKind(c, "StoryPart")
 }

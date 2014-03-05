@@ -37,7 +37,7 @@ func root(r request) response {
 		t.LoginLink = url
 	} else {
 		t.User = u.Email
-		t.CurrentPart = currentStoryPart(r.ctx(), *u)
+		t.CurrentStory = currentStory(r.ctx(), *u)
 	}
 	return execute(t)
 }
@@ -80,26 +80,26 @@ func story(r request) response {
 	// We're looking at a story, so the behavior depends on the status/user.
 	// We need to look up the story and the last part to find out where it's at.
 	id := (*args)["storyId"]
-	curStory, curPart := currentPart(r.ctx(), id)
-	if curStory == nil {
+	story := fetchStory(r.ctx(), id)
+	if story == nil {
 		return errorResponse{404, "Not Found: no such id"} // notFound
 	}
 
 	// If the story is complete, display it.
-	if curStory.Complete {
-		return displayStory(r, *curStory)
+	if story.Complete {
+		return displayStory(r, *story)
 	}
 
 	// Otherwise, if the current user is the next author, then show continue page
 	u, _ := r.user()
 	if u != nil {
-		if curPart.NextAuthor == u.Email {
-			return redirect("/story/" + id + "/" + curPart.Id)
+		if story.NextAuthor == u.Email {
+			return redirect("/story/" + id + "/" + story.NextId)
 		}
 		// Otherwise, if the current user is an author, display the status
-		for _, a := range curStory.Authors {
+		for _, a := range story.Authors {
 			if a == u.Email {
-				return storyStatus(r, *curStory, *curPart)
+				return storyStatus(r, *story)
 			}
 		}
 	}
@@ -114,27 +114,28 @@ func write(r request) response {
 	if args == nil {
 		return errorResponse{404, "Not Found: bad format"} // notFound
 	}
-	return writePart(r, (*args)["storyId"], (*args)["partId"])
+	text := r.req.FormValue("content")
+	return writePart(r, (*args)["storyId"], (*args)["partId"], text)
 }
 
 func continueStory(r request, storyId, partId string) response {
-	story, part := currentPart(r.ctx(), storyId)
+	story := fetchStory(r.ctx(), storyId)
 	if story == nil {
 		return errorResponse{404, "Not Found: no such story"}
-	} else if part.Id != partId {
-		return errorResponse{404, "Not Found: wrong part: " + part.Id}
+	} else if story.NextId != partId {
+		return errorResponse{404, "Not Found: wrong part: " + story.NextId}
 	}
-	return execute(&continuePage{part})
+	return execute(&continuePage{story})
 }
 
-func writePart(r request, storyId, partId string) response {
-	story, part := currentPart(r.ctx(), storyId)
+func writePart(r request, storyId, partId, text string) response {
+	story := fetchStory(r.ctx(), storyId)
 	if story == nil {
 		return errorResponse{404, "Not Found: no such story"}
-	} else if part.Id != partId {
-		return errorResponse{404, "Not Found: wrong part: " + part.Id}
+	} else if story.NextId != partId {
+		return errorResponse{404, "Not Found: wrong part: " + story.NextId}
 	}
-
+	savePart(r.ctx(), story, text)
 	return redirect("/")
 }
 
@@ -142,6 +143,6 @@ func displayStory(r request, story Story) response {
 	return errorResponse{500, fmt.Sprintf("display: %v", story)}
 }
 
-func storyStatus(r request, story Story, part StoryPart) response {
+func storyStatus(r request, story Story) response {
 	return errorResponse{500, fmt.Sprintf("status: %v", story)}
 }

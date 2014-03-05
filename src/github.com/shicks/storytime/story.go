@@ -18,11 +18,11 @@ type Story struct {
 	Creator string
 	// ID required for writing the next part of the story.
 	// This will be empty if the story is complete.
-	//NextId string
+	NextId string
 	// Email address of the next author.
-	//NextAuthor string
-	// Timestamp this story was finished.
-	Finished time.Time
+	NextAuthor string
+	// Timestamp this story was last modified.
+	Modified time.Time
 	// Whether the story is complete.
 	Complete bool
 	// The parts of the story, filled in upon completion.
@@ -42,6 +42,23 @@ func (s Story) GetId() string {
 	return s.Id
 }
 
+func (s Story) WordCount() int {
+	var count int
+	splitter := SplitterOnAny("\n\r ").TrimResults().OmitEmpty()
+	for _, p := range s.Parts {
+		count += len(splitter.SplitToList(p.Hidden))
+		count += len(splitter.SplitToList(p.Visible))
+	}
+	return count
+}
+
+func (s Story) LastPart() *StoryPart {
+	if len(s.Parts) == 0 {
+		return nil
+	}
+	return &s.Parts[len(s.Parts)-1]
+}
+
 // Can we store the Parts as a separate kind whose
 // parents are the story?  Will we be able to make all
 // the queries we need for most recent modified,
@@ -57,8 +74,6 @@ func (s Story) GetId() string {
 type StoryPart struct {
 	// The ID of this part.
 	Id string
-	// ID of the story this part belongs to.
-	Story string
 	// Text that the next writer does not get to see.
 	Hidden string
 	// Text that the next writer does get to see.
@@ -67,8 +82,6 @@ type StoryPart struct {
 	Written time.Time
 	// Author that contributed this part.
 	Author string
-	// Author that comes next.  Blank if this is the last part.
-	NextAuthor string
 }
 
 func (s *StoryPart) SetId(id string) {

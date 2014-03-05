@@ -7,9 +7,10 @@
 {{end}}
 
 {{define "rootPage"}}
+  {{template "head"}}
   <h1>Storytime</h1>
   {{template "completed" .CompletedStories}}
-  {{template "continue" .CurrentPart}}
+  {{template "continue" .CurrentStory}}
 
   <h2>Begin A New Story</h2>
   {{if .LoginLink}}
@@ -39,11 +40,11 @@
   {{end}}
 {{end}}
 
-{{/* param: StoryPart */}}
+{{/* param: Story */}}
 {{define "continue"}}
   {{if .}}
     <h2>Continue A Story</h2>
-    {{if .Visible}}
+    {{with .LastPart}}
       <div class="last-story">
         <div class="metadata">
           <span class="written-by">Written by <span class="author">{{.Author}}</span></span>
@@ -56,15 +57,17 @@
     {{else}}
       <div class="last-story">
         <div class="metadata">
+          <span class="written-by">Story initiated by <span class="author">{{.Creator}}</span></span>
+          <span class="written-at">at <span class="time">{{.Created}}</span>></span>
+          <br/>
           <span class="first-author">You are the first author.</span>
-          <span class="written-by">Story initiated by <span class="author">{{.Author}}</span></span>
-          <span class="written-at">at <span class="time">{{.Written}}</span>></span>
         </div>
       </div>
     {{end}}
-    <form action="/write/{{.Story}}/{{.Id}}" method="post">
-      <textarea name="content" rows="5" cols="80"
+    <form action="/write/{{.Id}}/{{.NextId}}" method="post">
+      <textarea name="content" rows="5" cols="80" class="continue-text"
                 placeholder="Please continue the story.  Anything on the last line (up to 16 words) will be visible to the next author."></textarea>
+      <br/>
       <input type="submit" value="Submit">
     </form>
   {{end}}
@@ -72,6 +75,7 @@
 
 
 {{define "continuePage"}}
+  {{template "head"}}
   <h1>Storytime</h1>
-  {{template "continue" .CurrentPart}}
+  {{template "continue" .CurrentStory}}
 {{end}}

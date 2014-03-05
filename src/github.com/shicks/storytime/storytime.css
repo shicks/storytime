@@ -18,3 +18,14 @@ a {
 a:hover {
   text-decoration: underline;
 }
+.last-line {
+  padding: 1em;
+  font-size: 108%;
+  background: #ddd;
+}
+.metadata {
+  font-style: italic;
+}
+.continue-text {
+  padding-top: 5px;
+}
