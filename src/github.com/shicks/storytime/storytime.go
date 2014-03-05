@@ -13,6 +13,7 @@ func init() {
 	http.Handle("/", appHandler(root))
 	http.Handle("/begin", appHandler(begin))
 	http.Handle("/story/", appHandler(story))
+	http.Handle("/write/", appHandler(write))
 
 	// TODO(sdh): remove this handler in prod
 	// TODO(sdh): UNRELATED - ProdRequiredFlag<T> only has default value in local testing
@@ -26,14 +27,17 @@ func clearAll(r request) response {
 }
 
 func root(r request) response {
-	t := &rootTemplate{}
+	if r.req.URL.String() != "/" {
+		return notFound
+	}
+	t := &rootPage{}
 	completed := completedStories(r.ctx())
 	t.CompletedStories = completed
 	if u, url := r.user(); u == nil {
 		t.LoginLink = url
 	} else {
 		t.User = u.Email
-		t.CurrentStory = currentStory(r.ctx(), *u)
+		t.CurrentPart = currentStoryPart(r.ctx(), *u)
 	}
 	return execute(t)
 }
@@ -103,8 +107,35 @@ func story(r request) response {
 	return errorResponse{404, "Not Found: permissions"} // TODO(sdh): notFound
 }
 
+// Handles URLs of the form /write/storyID/partID, reading the post data
+// and appending the part.  Redirects to / on success.
+func write(r request) response {
+	args := r.matchPath("/write/:storyId/:partId")
+	if args == nil {
+		return errorResponse{404, "Not Found: bad format"} // notFound
+	}
+	return writePart(r, (*args)["storyId"], (*args)["partId"])
+}
+
 func continueStory(r request, storyId, partId string) response {
-	return errorResponse{500, "continue: " + storyId + " / " + partId}
+	story, part := currentPart(r.ctx(), storyId)
+	if story == nil {
+		return errorResponse{404, "Not Found: no such story"}
+	} else if part.Id != partId {
+		return errorResponse{404, "Not Found: wrong part: " + part.Id}
+	}
+	return execute(&continuePage{part})
+}
+
+func writePart(r request, storyId, partId string) response {
+	story, part := currentPart(r.ctx(), storyId)
+	if story == nil {
+		return errorResponse{404, "Not Found: no such story"}
+	} else if part.Id != partId {
+		return errorResponse{404, "Not Found: wrong part: " + part.Id}
+	}
+
+	return redirect("/")
 }
 
 func displayStory(r request, story Story) response {

@@ -6,10 +6,10 @@
 </div>
 {{end}}
 
-{{define "root"}}
+{{define "rootPage"}}
   <h1>Storytime</h1>
   {{template "completed" .CompletedStories}}
-  {{template "continue" .CurrentStory}}
+  {{template "continue" .CurrentPart}}
 
   <h2>Begin A New Story</h2>
   {{if .LoginLink}}
@@ -39,25 +39,39 @@
   {{end}}
 {{end}}
 
-{{/* param: *Story */}}
+{{/* param: StoryPart */}}
 {{define "continue"}}
   {{if .}}
-    {{with $part := .Parts | last}}
-      <h2>Continue A Story</h2>
+    <h2>Continue A Story</h2>
+    {{if .Visible}}
       <div class="last-story">
         <div class="metadata">
-          <span class="written-by">Written by <span class="author">{{$part.Author}}</span></span>
-          <span class="written-at">at <span class="time">{{$part.Written}}</span>></span>
+          <span class="written-by">Written by <span class="author">{{.Author}}</span></span>
+          <span class="written-at">at <span class="time">{{.Written}}</span>></span>
         </div>
         <div class="last-line">
-          {{$part.Visible}}
+          {{.Visible}}
         </div>
       </div>
-      <form action="/continue" method="post">
-        <textarea name="content" rows="5" cols="80"
-                  placeholder="Please continue the story.  Anything on the last line (up to 16 words) will be visible to the next author."></textarea>
-        <input type="submit" value="Submit">
-      </form>
+    {{else}}
+      <div class="last-story">
+        <div class="metadata">
+          <span class="first-author">You are the first author.</span>
+          <span class="written-by">Story initiated by <span class="author">{{.Author}}</span></span>
+          <span class="written-at">at <span class="time">{{.Written}}</span>></span>
+        </div>
+      </div>
     {{end}}
+    <form action="/write/{{.Story}}/{{.Id}}" method="post">
+      <textarea name="content" rows="5" cols="80"
+                placeholder="Please continue the story.  Anything on the last line (up to 16 words) will be visible to the next author."></textarea>
+      <input type="submit" value="Submit">
+    </form>
   {{end}}
+{{end}}
+
+
+{{define "continuePage"}}
+  <h1>Storytime</h1>
+  {{template "continue" .CurrentPart}}
 {{end}}

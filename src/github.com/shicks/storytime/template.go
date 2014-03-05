@@ -1,7 +1,6 @@
 package storytime
 
 import (
-	"fmt"
 	"html/template"
 	"net/http"
 	"reflect"
@@ -24,15 +23,15 @@ func execute(data interface{}) response {
 	if typ.Kind() == reflect.Ptr {
 		typ = typ.Elem()
 	}
-	field, found := typ.FieldByName("TemplateName")
-	if !found {
-		panic(fmt.Errorf("Invalid data type for template: %v", data))
-	}
-	name := field.Tag.Get("template")
-	if name == "" {
-		panic(fmt.Errorf("Invalid data type for template: %v", data))
-	}
-	return templateResponse{name, data}
+	// field, found := typ.FieldByName("TemplateName")
+	// if !found {
+	// 	panic(fmt.Errorf("Invalid data type for template: %v", data))
+	// }
+	// name := field.Tag.Get("template")
+	// if name == "" {
+	// 	panic(fmt.Errorf("Invalid data type for template: %v", data))
+	// }
+	return templateResponse{typ.Name(), data}
 }
 
 var tmpl = template.Must(template.New("template").
@@ -57,10 +56,14 @@ type completedTemplate struct {
 	// TODO(sdh): pagination
 }
 
-type rootTemplate struct {
-	TemplateName     interface{} `template:"root"`
+type continuePage struct {
+	CurrentPart *StoryPart
+}
+
+type rootPage struct {
 	LoginLink        string
 	User             string
 	CompletedStories *completedTemplate
-	CurrentStory     *Story
+	CurrentPart      *StoryPart
+	//CurrentStories   []Story
 }
