@@ -1,6 +1,7 @@
 package storytime
 
 import (
+	"strings"
 	"time"
 )
 
@@ -42,6 +43,17 @@ func (s Story) GetId() string {
 	return s.Id
 }
 
+// Rewrites the authors with real names if available.
+func (s *Story) RewriteAuthors(rewriter func(string) string) {
+	s.Creator = rewriter(s.Creator)
+	s.NextAuthor = rewriter(s.NextAuthor)
+	for i, part := range s.Parts {
+		part.Author = rewriter(part.Author)
+		s.Parts[i] = part
+	}
+}
+
+// Returns the total number of words in this story, so far.
 func (s Story) WordCount() int {
 	var count int
 	splitter := SplitterOnAny("\n\r ").TrimResults().OmitEmpty()
@@ -52,6 +64,34 @@ func (s Story) WordCount() int {
 	return count
 }
 
+// Returns the number of words left before the story is complete.
+func (s Story) WordsLeft() int {
+	left := s.Words - s.WordCount()
+	if left < 0 {
+		return 0
+	}
+	return left
+}
+
+// Returns a 24-word snippet for displaying on the completed stories page.
+func (s Story) Snippet() string {
+	words := SplitterOnAny("\n\r ").TrimResults().OmitEmpty().SplitToList(s.FullText())
+	if len(words) > 24 {
+		words = append(words[:24], "...")
+	}
+	return strings.Join(words, " ")
+}
+
+// Returns the full text of a story.
+func (s Story) FullText() string {
+	var text string
+	for _, p := range s.Parts {
+		text += (p.Hidden + " " + p.Visible)
+	}
+	return text
+}
+
+// Returns the last part of the story, or nil.
 func (s Story) LastPart() *StoryPart {
 	if len(s.Parts) == 0 {
 		return nil

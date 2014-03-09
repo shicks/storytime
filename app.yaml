@@ -6,6 +6,6 @@ api_version: go1
 handlers:
   - url: /static/(.*)
     static_files: src/github.com/shicks/storytime/\1
-    upload: src/github.com/shicks/storytime/(.*\.css)
+    upload: src/github.com/shicks/storytime/(.*\.(css|js))
   - url: /.*
     script: _go_app

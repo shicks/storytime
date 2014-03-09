@@ -4,14 +4,15 @@
 <div class="topright">
   <a href="http://github.com/shicks/storytime">Github project</a>
 </div>
+<h1><a href="/">Storytime</a></h1>
 {{end}}
 
-{{define "rootPage"}}
-  {{template "head"}}
-  <h1>Storytime</h1>
-  {{template "completed" .CompletedStories}}
-  {{template "continue" .CurrentStory}}
+{{define "foot"}}
+<script src="/static/storytime.js"></script>
+{{end}}
 
+{{define "beginPage"}}
+  {{template "head"}}
   <h2>Begin A New Story</h2>
   {{if .LoginLink}}
     <p>You must be <a href="{{.LoginLink}}">logged in</a> to begin a story.</p>
@@ -31,13 +32,27 @@
       </form>
     </div>
   {{end}}
+  {{template "foot"}}
 {{end}}
 
-{{/* param: completedParams */}}
-{{define "completed"}}
-  {{if .Stories}}
-    <h2>Completed Stories</h2>
+{{define "completedPage"}}
+  {{template "head"}}
+  <h2>Completed Stories</h2>
+  <ul>
+  {{range .Stories}}
+    {{/* TODO(sdh): add more metadata (date, author, etc) */}}
+    <li><a href="/story/{{.Id}}">{{.Snippet}}</a>
+  {{else}}
+  <li><i>There are no completed stories yet.</i>
   {{end}}
+  </ul>
+  {{template "foot"}}
+{{end}}
+
+{{define "continuePage"}}
+  {{template "head"}}
+  {{template "continue" .CurrentStory}}
+  {{template "foot"}}
 {{end}}
 
 {{/* param: Story */}}
@@ -48,7 +63,7 @@
       <div class="last-story">
         <div class="metadata">
           <span class="written-by">Written by <span class="author">{{.Author}}</span></span>
-          <span class="written-at">at <span class="time">{{.Written}}</span>></span>
+          <span class="written-at"><span class="time">{{.Written | fuzzy}}</span>.</span>
         </div>
         <div class="last-line">
           {{.Visible}}
@@ -58,24 +73,22 @@
       <div class="last-story">
         <div class="metadata">
           <span class="written-by">Story initiated by <span class="author">{{.Creator}}</span></span>
-          <span class="written-at">at <span class="time">{{.Created}}</span>></span>
+          <span class="written-at"><span class="time">{{.Created | fuzzy}}</span>.</span>
           <br/>
           <span class="first-author">You are the first author.</span>
         </div>
       </div>
     {{end}}
     <form action="/write/{{.Id}}/{{.NextId}}" method="post">
-      <textarea name="content" rows="5" cols="80" class="continue-text"
+      <textarea name="content" rows="5" cols="80" id="continue-text"
                 placeholder="Please continue the story.  Anything on the last line (up to 16 words) will be visible to the next author."></textarea>
       <br/>
+      <span id="words-remaining">{{.WordsLeft}}</span>
+      <span id="story-will-end" class="invisible">This is the last part of the story.</span>
+      <br/>
       <input type="submit" value="Submit">
+      <br/>
+      The next author will see: <span id="next-visible"></span>
     </form>
   {{end}}
-{{end}}
-
-
-{{define "continuePage"}}
-  {{template "head"}}
-  <h1>Storytime</h1>
-  {{template "continue" .CurrentStory}}
 {{end}}

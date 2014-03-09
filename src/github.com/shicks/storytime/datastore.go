@@ -47,16 +47,16 @@ func fetchStory(c appengine.Context, id string) *Story {
 //    - how to inject the cache? (may not need to - just use context)
 // TODO(sdh): support pagination and per-user?
 // TODO(sdh): search service for fulltext story search
-func completedStories(c appengine.Context) *completedTemplate {
+func completedStories(c appengine.Context) []Story {
 	q := datastore.NewQuery("Story").
 		Filter("Complete =", true).
-		Order("-Finished").
+		Order("-Modified").
 		Limit(10)
 	var stories []Story
 	if _, err := q.GetAll(c, &stories); err != nil {
 		panic(err)
 	}
-	return &completedTemplate{stories}
+	return stories
 }
 
 // Generates a random string of lowercase letters and numbers of the given length.
@@ -117,6 +117,9 @@ func newStory(c appengine.Context, authors []*mail.Address, words int) string {
 	addrs := make([]string, len(authors))
 	parts := make([]StoryPart, 0)
 	for i, author := range authors {
+		if author.Name != "" {
+			putNameForEmailIfAbsent(c, author.Name, author.Address)
+		}
 		addrs[i] = author.Address
 	}
 	now := time.Now()
@@ -183,10 +186,23 @@ func savePart(c appengine.Context, story *Story, text string) {
 	if story.WordCount() >= story.Words {
 		story.Complete = true
 	}
-	storyKey := datastore.NewKey(c, "Story", story.Id, 0, nil)
-	_, err := datastore.Put(c, storyKey, story)
-	if err != nil {
-		panic(&appError{err, "Failed to write story to datastore", http.StatusInternalServerError})
+	e := datastore.RunInTransaction(c, func(c appengine.Context) error {
+		existing := new(Story)
+		key := datastore.NewKey(c, "Story", story.Id, 0, nil)
+		if err := datastore.Get(c, key, existing); err != nil {
+			return err
+		}
+		if existing.NextId != part.Id {
+			panic(fmt.Errorf("Part was written concurrently."))
+		}
+		if _, err := datastore.Put(c, key, story); err != nil {
+			return err
+		}
+		return nil
+	}, nil)
+	// _, err := datastore.Put(c, storyKey, story)
+	if e != nil {
+		panic(&appError{e, "Failed to update story", http.StatusInternalServerError})
 	}
 }
 

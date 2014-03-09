@@ -7,11 +7,13 @@ import (
 	"net/mail"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func init() {
 	http.Handle("/", appHandler(root))
 	http.Handle("/begin", appHandler(begin))
+	http.Handle("/completed", appHandler(completed))
 	http.Handle("/story/", appHandler(story))
 	http.Handle("/write/", appHandler(write))
 
@@ -27,23 +29,37 @@ func clearAll(r request) response {
 }
 
 func root(r request) response {
+	// Depending on whether the user is logged in
+	// and whether there is an outstanding story,
+	// redirect...
 	if r.req.URL.String() != "/" {
 		return notFound
 	}
-	t := &rootPage{}
-	completed := completedStories(r.ctx())
-	t.CompletedStories = completed
+
+	if u, _ := r.user(); u != nil {
+		story := currentStory(r.ctx(), *u)
+		if story != nil {
+			return redirect("/story/" + story.Id + "/" + story.NextId)
+		}
+	}
+	return redirect("/completed")
+}
+
+func begin(r request) response {
+	if r.req.Method == "POST" {
+		return beginPost(r)
+	}
+	t := &beginPage{}
 	if u, url := r.user(); u == nil {
 		t.LoginLink = url
 	} else {
 		t.User = u.Email
-		t.CurrentStory = currentStory(r.ctx(), *u)
 	}
 	return execute(t)
 }
 
 // Begins a new story with the given form inputs (authors, words)
-func begin(r request) response {
+func beginPost(r request) response {
 	authorList := strings.Replace(r.req.FormValue("authors"), "\n", ",", -1)
 	authorList = strings.Replace(authorList, "\r", "", -1)
 	authors, err := mail.ParseAddressList(authorList)
@@ -60,6 +76,10 @@ func begin(r request) response {
 	id := newStory(r.ctx(), authors, int(words))
 	// Now issue the redirect.
 	return redirect("/story/" + id)
+}
+
+func completed(r request) response {
+	return execute(&completedPage{completedStories(r.ctx())})
 }
 
 // Handles URLs of the form /story/storyID or /story/storyID/partID
@@ -123,8 +143,10 @@ func continueStory(r request, storyId, partId string) response {
 	if story == nil {
 		return errorResponse{404, "Not Found: no such story"}
 	} else if story.NextId != partId {
-		return errorResponse{404, "Not Found: wrong part: " + story.NextId}
+		return redirect("/")
+		//return errorResponse{404, "Not Found: wrong part: " + story.NextId}
 	}
+	story.RewriteAuthors(nameFunc(r.ctx()))
 	return execute(&continuePage{story})
 }
 
@@ -136,6 +158,7 @@ func writePart(r request, storyId, partId, text string) response {
 		return errorResponse{404, "Not Found: wrong part: " + story.NextId}
 	}
 	savePart(r.ctx(), story, text)
+	time.Sleep(500 * time.Millisecond)
 	return redirect("/")
 }
 

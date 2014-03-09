@@ -26,6 +26,17 @@ a:hover {
 .metadata {
   font-style: italic;
 }
-.continue-text {
+
+#continue-text {
   padding-top: 5px;
+}
+#words-remaining:after {
+  content: " words to go."
+}
+#next-visible {
+  background: #eee;
+  padding: 0.25em;
+}
+.invisible: {
+  display: none;
 }

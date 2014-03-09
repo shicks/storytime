@@ -35,7 +35,12 @@ func execute(data interface{}) response {
 }
 
 var tmpl = template.Must(template.New("template").
+	Funcs(fmap).
 	ParseFiles("src/github.com/shicks/storytime/template.html"))
+
+var fmap = template.FuncMap{
+	"fuzzy": fuzzyTime,
+}
 
 // TODO(sdh): Rather than displaying everything on the start page,
 // we should split it up.  This will also help with refreshes (i.e.
@@ -45,18 +50,16 @@ var tmpl = template.Must(template.New("template").
 // or 'completed', etc.  If no story is ongoing, redirect to recently
 // completed stories (with snippets of the first few lines).
 
-type completedTemplate struct {
-	Stories []Story
-	// TODO(sdh): pagination
-}
-
 type continuePage struct {
 	CurrentStory *Story
 }
 
-type rootPage struct {
-	LoginLink        string
-	User             string
-	CompletedStories *completedTemplate
-	CurrentStory     *Story
+type completedPage struct {
+	Stories []Story
+	// TODO(sdh): pagination
+}
+
+type beginPage struct {
+	LoginLink string
+	User      string
 }
