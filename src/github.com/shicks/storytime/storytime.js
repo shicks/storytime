@@ -32,7 +32,8 @@ function update() {
 }
 
 function countWords(text) {
-  return text.trim().split(/\s+/).length;
+  var words = text.trim().split(/\s+/);
+  return words[0] ? words.length : 0;
 }
 
 function lastWords(text, count) {

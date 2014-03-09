@@ -143,8 +143,7 @@ func continueStory(r request, storyId, partId string) response {
 	if story == nil {
 		return errorResponse{404, "Not Found: no such story"}
 	} else if story.NextId != partId {
-		return redirect("/")
-		//return errorResponse{404, "Not Found: wrong part: " + story.NextId}
+		return errorResponse{404, "Not Found: wrong part: " + story.NextId}
 	}
 	story.RewriteAuthors(nameFunc(r.ctx()))
 	return execute(&continuePage{story})

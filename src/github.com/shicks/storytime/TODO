@@ -1,0 +1,5 @@
+1. clean up the completed story display /story/abc
+2. root page should list better options: my stories, +story, recent stories
+3. send emails - only if this is a new part to write...?
+   - when finishing a part, only send the next part by email to same user IF NOT LOGGED IN...?
+4. receive emails?
