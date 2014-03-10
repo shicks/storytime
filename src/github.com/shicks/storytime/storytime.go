@@ -2,7 +2,6 @@ package storytime
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"net/mail"
 	"strconv"
@@ -21,28 +20,49 @@ func init() {
 	// TODO(sdh): UNRELATED - ProdRequiredFlag<T> only has default value in local testing
 	//   (or potentially some sort of guice module that checks annotated flags only in prod)
 	http.Handle("/clear", appHandler(clearAll))
+	http.Handle("/repair", appHandler(repairAll))
 }
 
 func clearAll(r request) response {
+	u := r.userRequired()
+	if !u.Admin {
+		return notFound
+	}
 	clearDatastore(r.ctx())
+	flushUserCache(r.ctx())
+	return errorResponse{200, "OK"}
+}
+
+func repairAll(r request) response {
+	u := r.userRequired()
+	if !u.Admin {
+		return notFound
+	}
+	//fixStoryAuthors(r.ctx())
+	//cleanDatastore(r.ctx())
 	return errorResponse{200, "OK"}
 }
 
 func root(r request) response {
-	// Depending on whether the user is logged in
-	// and whether there is an outstanding story,
-	// redirect...
+	// Note: "/" matches everything.
 	if r.req.URL.String() != "/" {
 		return notFound
 	}
 
-	if u, _ := r.user(); u != nil {
-		story := currentStory(r.ctx(), u.Email)
-		if story != nil {
-			return redirect("/story/" + story.Id + "/" + story.NextId)
-		}
+	// Build up the response.
+	var root rootPage
+	root.RecentlyCompleted = completedStories(r.ctx(), 5, time.Now())
+	u, url := r.user()
+	if u != nil {
+		root.Author = u.Email
+		root.CurrentStory = currentStory(r.ctx(), u.Email)
+		root.InProgress = inProgressStories(r.ctx(), u.Email)
+	} else {
+		root.LoginLink = url
 	}
-	return redirect("/completed")
+
+	// Return the response.
+	return execute(root)
 }
 
 func begin(r request) response {
@@ -60,8 +80,8 @@ func begin(r request) response {
 
 // Begins a new story with the given form inputs (authors, words)
 func beginPost(r request) response {
-	authorList := strings.Replace(r.req.FormValue("authors"), "\n", ",", -1)
-	authorList = strings.Replace(authorList, "\r", "", -1)
+	authorList := strings.Join(
+		SplitterOnAny(",\n\r").TrimResults().OmitEmpty().SplitToList(r.req.FormValue("authors")), ",")
 	authors, err := mail.ParseAddressList(authorList)
 	if err != nil {
 		panic(&appError{err, "Could not parse author email addresses: " + authorList, http.StatusBadRequest})
@@ -83,7 +103,16 @@ func beginPost(r request) response {
 }
 
 func completed(r request) response {
-	return execute(&completedPage{completedStories(r.ctx())})
+	olderThan := time.Now()
+	if before := r.req.FormValue("before"); before != "" {
+		beforeSeconds, err := strconv.ParseInt(before, 10, 64)
+		if err != nil {
+			// TODO(sdh): log?
+		} else {
+			olderThan = time.Unix(beforeSeconds, 0)
+		}
+	}
+	return execute(&completedPage{completedStories(r.ctx(), 50, olderThan)})
 }
 
 // Handles URLs of the form /story/storyID or /story/storyID/partID
@@ -154,6 +183,9 @@ func continueStory(r request, storyId, partId string) response {
 }
 
 func writePart(r request, storyId, partId, text string) response {
+	if len(text) > 500 {
+		return errorResponse{400, "Input too long: 500 characters max."}
+	}
 	story := fetchStory(r.ctx(), storyId)
 	user, _ := r.user()
 	author := story.NextAuthor
@@ -184,5 +216,7 @@ func displayStory(r request, story Story) response {
 }
 
 func storyStatus(r request, story Story) response {
-	return errorResponse{500, fmt.Sprintf("status: %v", story)}
+	inProgress := story.InProgress(r.userRequired().Email)
+	inProgress.RewriteAuthors(relativeNameFunc(r.ctx(), r.userRequired().Email))
+	return execute(&statusPage{inProgress})
 }

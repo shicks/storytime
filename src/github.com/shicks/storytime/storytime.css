@@ -37,10 +37,18 @@ a:hover {
   background: #eee;
   padding: 0.25em;
 }
-.invisible: {
+.invisible {
   display: none;
 }
 
 .story-part-visible {
   font-style: italic;
+}
+.too-long {
+  display: none;
+  color: red;
+  font-weight: bold;
+}
+input:disabled+.too-long {
+  display: inline;
 }

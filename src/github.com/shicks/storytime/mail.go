@@ -21,11 +21,11 @@ func sendMail(c appengine.Context, story Story) {
 	part := story.LastPart()
 	url := fmt.Sprintf(serverUrl, story.Id, story.NextId)
 	if part != nil {
-		subject = "Write the next part of this story."
+		subject = "Please write the next part of this story."
 		text = fmt.Sprintf("%s, %s wrote:\n> %s\n\nPlease visit %s to write the next part.",
 			fuzzyTime(part.Written), getFullEmail(c, part.Author), part.Visible, url)
 	} else {
-		subject = "Write the first part of this story."
+		subject = "Please write the first part of this story."
 		text = fmt.Sprintf("%s, %s initiated a new story.\n\nPlease visit %s to write the beginning.",
 			fuzzyTime(part.Written), getFullEmail(c, story.Creator), url)
 	}

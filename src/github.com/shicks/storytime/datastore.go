@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
+	"sort"
 	"strings"
 	"time"
 
@@ -30,6 +31,45 @@ func currentStory(c appengine.Context, author string) *Story {
 	return nil
 }
 
+// Retrieves all the in-progress stories for the given author.
+func inProgressStories(c appengine.Context, author string) []InProgressStory {
+
+	q := datastore.NewQuery("StoryAuthor").
+		Filter("Author =", author).
+		KeysOnly()
+
+	keys, err := q.GetAll(c, nil)
+	if err != nil {
+		panic(&appError{err, "Failed to fetch in-progress story authors", 500})
+	}
+
+	storyKeys := make([]*datastore.Key, len(keys))
+
+	for i, key := range keys {
+		storyKeys[i] = key.Parent()
+	}
+	stories := make([]Story, len(keys))
+	if err := datastore.GetMulti(c, storyKeys, stories); err != nil {
+		panic(&appError{err, "Failed to fetch in-progress stories", 500})
+	}
+	sort.Sort(byTime(stories))
+
+	inProgress := make([]InProgressStory, len(keys))
+	for i, story := range stories {
+		inProgress[i] = story.InProgress(author)
+		inProgress[i].RewriteAuthors(nameFunc(c))
+	}
+
+	return inProgress
+}
+
+// ByTime implements sort.Interface for []Story based on the Modified field (descending).
+type byTime []Story
+
+func (a byTime) Len() int           { return len(a) }
+func (a byTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byTime) Less(i, j int) bool { return a[i].Modified.Before(a[j].Modified) }
+
 // Retrieves a story by ID.
 func fetchStory(c appengine.Context, id string) *Story {
 	k := datastore.NewKey(c, "Story", id, 0, nil)
@@ -46,11 +86,12 @@ func fetchStory(c appengine.Context, id string) *Story {
 //    - how to inject the cache? (may not need to - just use context)
 // TODO(sdh): support pagination and per-user?
 // TODO(sdh): search service for fulltext story search
-func completedStories(c appengine.Context) []Story {
+func completedStories(c appengine.Context, limit int, olderThan time.Time) []Story {
 	q := datastore.NewQuery("Story").
 		Filter("Complete =", true).
 		Order("-Modified").
-		Limit(10)
+		Filter("Modified <", olderThan).
+		Limit(limit)
 	var stories []Story
 	if _, err := q.GetAll(c, &stories); err != nil {
 		panic(err)
@@ -74,7 +115,7 @@ func randomString(l int) string {
 	return s
 }
 
-func putShortKey(c appengine.Context, kind string, data hasId, parent *datastore.Key, minLength int) (*datastore.Key, error) {
+func putShortKey(c appengine.Context, kind string, story *Story, parent *datastore.Key, minLength int) (*datastore.Key, error) {
 	// Pick a random ID and then find all 2+ character substrings
 	s := randomString(32)
 	var result *Story
@@ -84,7 +125,7 @@ func putShortKey(c appengine.Context, kind string, data hasId, parent *datastore
 		e = datastore.RunInTransaction(c, func(c appengine.Context) error {
 			result = nil
 			key = datastore.NewKey(c, kind, s[:i], 0, parent)
-			data.SetId(s[:i])
+			story.Id = s[:i]
 			if err := datastore.Get(c, key, result); err != nil && err != datastore.ErrNoSuchEntity {
 				return err
 			}
@@ -92,7 +133,18 @@ func putShortKey(c appengine.Context, kind string, data hasId, parent *datastore
 				i++
 				return datastore.ErrConcurrentTransaction
 			}
-			if _, err := datastore.Put(c, key, data); err != nil {
+			if _, err := datastore.Put(c, key, story); err != nil {
+				return err
+			}
+			// Also store all the StoryAuthor entities (Note: we could re-abstract this to HasId
+			// by adding a method finalize() but it would pull datastore details into story.go
+			authorKeys := make([]*datastore.Key, 0, len(story.Authors))
+			authorEntities := make([]StoryAuthor, 0, len(story.Authors))
+			for _, author := range story.Authors {
+				authorKeys = append(authorKeys, datastore.NewKey(c, "StoryAuthor", author, 0, key))
+				authorEntities = append(authorEntities, StoryAuthor{author, story.Id})
+			}
+			if _, err := datastore.PutMulti(c, authorKeys, authorEntities); err != nil {
 				return err
 			}
 			return nil
@@ -107,11 +159,6 @@ func putShortKey(c appengine.Context, kind string, data hasId, parent *datastore
 // Makes a new story and saves it to the datastore.
 // Returns the ID.
 func newStory(r request, authors []*mail.Address, words int) Story {
-	// TODO(sdh): incorporate names from email addresses?
-	//id := randomString(10)
-	//nextId := randomString(16)
-	//key := datastore.NewKey(c, "Story", id, 0, nil)
-	//key := datastore.NewIncompleteKey(c, "Story", nil)
 	u, _ := r.user()
 	if u == nil {
 		panic(fmt.Errorf("Must be logged in to start a new story."))
@@ -208,9 +255,21 @@ func savePart(c appengine.Context, story *Story, text string) {
 		if _, err := datastore.Put(c, key, story); err != nil {
 			return err
 		}
+		if story.Complete {
+			// We need to delete all the author keys
+			q := datastore.NewQuery("StoryAuthor").
+				Ancestor(key).
+				KeysOnly()
+			authorKeys, err := q.GetAll(c, nil)
+			if err != nil {
+				return err
+			}
+			if err := datastore.DeleteMulti(c, authorKeys); err != nil {
+				return err
+			}
+		}
 		return nil
 	}, nil)
-	// _, err := datastore.Put(c, storyKey, story)
 	if e != nil {
 		panic(&appError{e, "Failed to update story", http.StatusInternalServerError})
 	}
@@ -218,8 +277,8 @@ func savePart(c appengine.Context, story *Story, text string) {
 
 func clearKind(c appengine.Context, kind string) {
 	q := datastore.NewQuery(kind).KeysOnly()
-	var keys []*datastore.Key
-	if _, err := q.GetAll(c, &keys); err != nil {
+	keys, err := q.GetAll(c, nil)
+	if err != nil {
 		panic(&appError{err, "Failed to fetch all " + kind, 500})
 	}
 	if err := datastore.DeleteMulti(c, keys); err != nil {
@@ -229,5 +288,9 @@ func clearKind(c appengine.Context, kind string) {
 
 func clearDatastore(c appengine.Context) {
 	clearKind(c, "Story")
+	clearKind(c, "StoryAuthor")
 	clearKind(c, "UserInfo")
+}
+
+func deleteStoryAuthors(c appengine.Context, id string) {
 }

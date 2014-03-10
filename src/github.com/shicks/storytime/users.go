@@ -32,7 +32,7 @@ func getNameFromEmail(c appengine.Context, email string) *string {
 	result, err := memcache.Get(c, "nameforemail:"+email)
 	var name string
 	if err != nil && err != memcache.ErrCacheMiss {
-		panic(err) // who knows what this could be...
+		panic(&appError{err, "Unknown memcache error", 500}) // who knows what this could be...
 	}
 	if err == nil {
 		name = string(result.Value)
@@ -43,10 +43,11 @@ func getNameFromEmail(c appengine.Context, email string) *string {
 	}
 	// Cache miss: go to datastore
 	info := new(UserInfo)
-	err = datastore.Get(c, datastore.NewKey(c, "UserInfo", email, 0, nil), info)
-	if err != nil && err != datastore.ErrNoSuchEntity {
-		panic(err) // again, something weird.
-	}
+	datastore.Get(c, datastore.NewKey(c, "UserInfo", email, 0, nil), info)
+	// TODO(sdh): due to a bug, this returns the wrong error
+	//if err != nil && err != datastore.ErrNoSuchEntity {
+	//	panic(&appError{err, "Unknown datastore error", 500}) // something weird
+	//}
 	if result != nil {
 		name = info.Name
 	}
@@ -83,9 +84,25 @@ func nameFunc(c appengine.Context) func(string) string {
 	}
 }
 
+func relativeNameFunc(c appengine.Context, self string) func(string) string {
+	f := nameFunc(c)
+	return func(email string) string {
+		if email == self {
+			return "you"
+		}
+		return f(email)
+	}
+}
+
 func fullEmailFunc(c appengine.Context) func(string) string {
 	return func(email string) string {
 		return getFullEmail(c, email)
+	}
+}
+
+func flushUserCache(c appengine.Context) {
+	if err := memcache.Flush(c); err != nil {
+		panic(&appError{err, "Error flushing memcache", 500})
 	}
 }
 

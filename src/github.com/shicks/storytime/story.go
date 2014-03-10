@@ -82,13 +82,47 @@ func (s Story) Snippet() string {
 	return strings.Join(words, " ")
 }
 
+// Returns a snippet of the last piece of a story written by the given author.
+func (s Story) InProgressSnippet(author string) string {
+	for i := len(s.Parts) - 1; i >= 0; i-- {
+		part := s.Parts[i]
+		if part.Author == author {
+			var prefix string
+			if i > 0 {
+				prefix = "... "
+			}
+			return "\"" + strings.Trim(prefix+part.Hidden+" "+part.Visible+" ...", " \r\n") + "\""
+		}
+	}
+	return "(No parts written yet)"
+}
+
+// Returns an InProgressStory for the given user.
+func (s Story) InProgress(author string) InProgressStory {
+	inProgress := InProgressStory{
+		Id:          s.Id,
+		Created:     s.Created,
+		Creator:     s.Creator,
+		NextAuthor:  s.NextAuthor,
+		Modified:    s.Modified,
+		LastWritten: s.InProgressSnippet(author),
+		Authors:     s.Authors,
+		Words:       s.Words,
+		WordsLeft:   s.WordsLeft(),
+	}
+	if len(s.Parts) > 0 {
+		inProgress.LastAuthor = s.Parts[len(s.Parts)-1].Author
+	}
+	return inProgress
+}
+
 // Returns the full text of a story.
 func (s Story) FullText() string {
-	var text string
+	pieces := make([]string, 0)
 	for _, p := range s.Parts {
-		text += (p.Hidden + " " + p.Visible)
+		pieces = append(append(pieces, p.Hidden), p.Visible)
 	}
-	return text
+	return strings.Join(pieces, " ")
 }
 
 // Returns the last part of the story, or nil.
@@ -99,17 +133,10 @@ func (s Story) LastPart() *StoryPart {
 	return &s.Parts[len(s.Parts)-1]
 }
 
-// Can we store the Parts as a separate kind whose
-// parents are the story?  Will we be able to make all
-// the queries we need for most recent modified,
-// next author, etc?
-
-// queries:
-//  1. given story id & part, is it the last? (generate an empty part first) -> easy keysonly
-//  2. next part for given author (across stories) -> find parts, order by time
-// complete stories can be rewritten w/ all its parts?
-// issue: what data structure to return from queries if story doesn't contain parts?
-//   - (Story, []StoryPart) ?
+// Returns the unix time in seconds this story was last modified.
+func (s Story) LastModified() int64 {
+	return s.Modified.Unix()
+}
 
 type StoryPart struct {
 	// The ID of this part.
@@ -130,4 +157,47 @@ func (s *StoryPart) SetId(id string) {
 
 func (s StoryPart) GetId() string {
 	return s.Id
+}
+
+// This kind is used to quickly access all current stories for a given author.
+type StoryAuthor struct {
+	// Name of the author.
+	Author string
+	// Id of the story.
+	StoryId string
+}
+
+// Summarizes an in-progress story for a given author.
+type InProgressStory struct {
+	// The ID of this story.
+	Id string
+	// The time the story was created.
+	Created time.Time
+	// Email address that created the story.
+	Creator string
+	// Email address of the next author.
+	NextAuthor string
+	// Email address of the last author.
+	LastAuthor string
+	// Timestamp this story was last modified.
+	Modified time.Time
+	// Last chunk written by the current user.
+	LastWritten string
+	// Email addresses of each author.
+	Authors []string
+	// Total number of words in the story.  Once the story
+	// reaches this length (or longer), it will be closed.
+	Words int
+	// Words remaining in the story.
+	WordsLeft int
+}
+
+// Rewrites the authors with real names if available.
+func (s *InProgressStory) RewriteAuthors(rewriter func(string) string) {
+	s.Creator = rewriter(s.Creator)
+	s.NextAuthor = rewriter(s.NextAuthor)
+	s.LastAuthor = rewriter(s.LastAuthor)
+	for i, author := range s.Authors {
+		s.Authors[i] = rewriter(author)
+	}
 }

@@ -40,6 +40,15 @@ var tmpl = template.Must(template.New("template").
 
 var fmap = template.FuncMap{
 	"fuzzy": fuzzyTime,
+	"last":  lastStory,
+	"inc":   func(i int) int { return i + 1 },
+}
+
+func lastStory(stories []Story) *Story {
+	if len(stories) > 0 {
+		return &stories[len(stories)-1]
+	}
+	return nil
 }
 
 // TODO(sdh): Rather than displaying everything on the start page,
@@ -66,4 +75,16 @@ type printStoryPage struct {
 type beginPage struct {
 	LoginLink string
 	User      string
+}
+
+type rootPage struct {
+	LoginLink         string
+	Author            string
+	CurrentStory      *Story
+	InProgress        []InProgressStory
+	RecentlyCompleted []Story
+}
+
+type statusPage struct {
+	Story InProgressStory
 }

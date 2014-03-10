@@ -11,6 +11,30 @@
 <script src="/static/storytime.js"></script>
 {{end}}
 
+{{define "rootPage"}}
+  {{template "head"}}
+  {{if .LoginLink}}
+    <h2>Log In</h2>
+    You must be <a href="{{.LoginLink}}">logged in</a> to begin a new story.
+  {{else}}
+    {{$author := .Author}}
+    {{with .CurrentStory}}
+      <h2>Continue A Story</h2>
+      You have a <a href="/story/{{.Id}}/{{.NextId}}">story ready to continue</a>.
+    {{end}}
+    <h2>Stories In Progress</h2>
+    <ul>
+      {{range $i, $story := .InProgress}}
+        <li><a href="/story/{{$story.Id}}">Story {{inc $i}}</a>:
+          {{$story.LastWritten}}
+      {{end}}
+      <li><a href="/begin">Begin a new story</a>
+    </ul>
+  {{end}}
+  {{template "completed" .RecentlyCompleted}}
+  {{template "foot"}}
+{{end}}
+
 {{define "beginPage"}}
   {{template "head"}}
   <h2>Begin A New Story</h2>
@@ -37,15 +61,7 @@
 
 {{define "completedPage"}}
   {{template "head"}}
-  <h2>Completed Stories</h2>
-  <ul>
-  {{range .Stories}}
-    {{/* TODO(sdh): add more metadata (date, author, etc) */}}
-    <li><a href="/story/{{.Id}}">{{.Snippet}}</a>
-  {{else}}
-  <li><i>There are no completed stories yet.</i>
-  {{end}}
-  </ul>
+  {{template "completed" .Stories}}
   {{template "foot"}}
 {{end}}
 
@@ -58,6 +74,12 @@
 {{define "printStoryPage"}}
   {{template "head"}}
   {{template "printStory" .Story}}
+  {{template "foot"}}
+{{end}}
+
+{{define "statusPage"}}
+  {{template "head"}}
+  {{template "printStoryStatus" .Story}}
   {{template "foot"}}
 {{end}}
 
@@ -91,10 +113,28 @@
     <span id="words-remaining">{{.WordsLeft}}</span>
     <span id="story-will-end" class="invisible">This is the last part of the story.</span>
     <br/>
-    <input type="submit" value="Submit">
+    <input id="submit" type="submit" value="Submit">
+    <span class="too-long">Maximum length of a single part is 500 characters.</span>
     <br/>
     The next author will see: <span id="next-visible"></span>
   </form>
+{{end}}
+
+{{/* param: []Story */}}
+{{define "completed"}}
+  <h2>Completed Stories</h2>
+  <ul>
+  {{range .}}
+    {{/* TODO(sdh): add more metadata (date, author, etc) */}}
+    <li><a href="/story/{{.Id}}">{{.Snippet}}</a>
+  {{else}}
+  <li><i>There are no completed stories yet.</i>
+  {{end}}
+  </ul>
+  {{with . | last}}
+    {{/* TODO(sdh): don't show link if we know there are no more... */}}
+    <a href="/completed?before={{.LastModified}}">Show More</a>
+  {{end}}
 {{end}}
 
 {{/* param: Story */}}
@@ -105,4 +145,16 @@
       <span class="story-part-visible">{{.Visible}}</span>
     </span>
   {{end}}
+{{end}}
+
+{{/* param: InProgressStory */}}
+{{define "printStoryStatus"}}
+  <h2>{{.LastWritten}}</h2>
+  <div class="status-created">Initiated {{.Created | fuzzy}} by {{.Creator}}</div>
+  {{if .LastAuthor}}
+    <div class="last-modified">Last contribution {{.Modified | fuzzy}} by {{.LastAuthor}}</div>
+  {{end}}
+  <div class="blocked-on">Waiting for contribution from {{.NextAuthor}}</div>
+  <div class="word-count">{{.WordsLeft}} of {{.Words}} words remaining</div>
+  {{/* TODO(sdh): action buttons (resend email, skip/kick author, cancel, etc */}}
 {{end}}

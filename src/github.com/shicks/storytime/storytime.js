@@ -8,6 +8,7 @@ var wordsRemaining = wordsRemainingElement && parseInt(wordsRemainingElement.inn
 
 var nextVisible = document.getElementById('next-visible');
 var storyWillEnd = document.getElementById('story-will-end');
+var submitButton = document.getElementById('submit');
 
 var continueText = document.getElementById('continue-text');
 if (continueText) continueText.addEventListener('keyup', update);
@@ -29,6 +30,9 @@ function update() {
   if (nextVisible) {
     nextVisible.textContent = lastWords(continueText.value, 16); // TODO(sdh): inject count
   }
+
+  // Disable the submit button if story is too long
+  submitButton.disabled = continueText.value.length > 500;
 }
 
 function countWords(text) {
