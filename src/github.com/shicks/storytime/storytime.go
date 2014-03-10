@@ -45,8 +45,8 @@ func repairAll(r request) response {
 
 func root(r request) response {
 	// Note: "/" matches everything.
-	if r.req.URL.String() != "/" {
-		return notFound
+	if r.matchPath("/") == nil {
+		return errorResponse{404, "Not Found: " + r.req.URL.String()}
 	}
 
 	// Build up the response.

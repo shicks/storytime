@@ -62,12 +62,24 @@ func (r request) matchPath(pattern string) *map[string]string {
 	pattern = path.Clean(pattern)
 	url := path.Clean(r.req.URL.String())
 	patternSplit := strings.Split(pattern, "/")
+	if patternSplit[0] != "" {
+		panic(errors.New("Bad pattern"))
+	}
 	urlSplit := strings.Split(url, "/")
+	// Process differences between dev_appserver and live code:
+	// 1. prod servers include the http://foo.appspot.com prefix
+	if strings.HasPrefix(urlSplit[0], "http") {
+		urlSplit = urlSplit[1:]
+	}
+	// 2. prod servers don't include the trailing slash
+	if len(urlSplit) == 1 {
+		urlSplit = append(urlSplit, "")
+	}
 	if len(urlSplit) < len(patternSplit) || (len(urlSplit) > len(patternSplit) && !strings.HasSuffix(url, "/*")) {
 		return nil
 	}
 	result := make(map[string]string)
-	for i := 0; i < len(patternSplit); i++ {
+	for i := 1; i < len(patternSplit); i++ { // ignore i=0 (i.e. host/domain)
 		if patternSplit[i] == "*" {
 			if i != len(patternSplit)-1 {
 				panic(errors.New("Bad pattern"))

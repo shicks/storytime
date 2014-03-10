@@ -9,3 +9,6 @@ handlers:
     upload: src/github.com/shicks/storytime/(.*\.(css|js))
   - url: /.*
     script: _go_app
+
+inbound_services:
+  - mail

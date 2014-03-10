@@ -62,7 +62,7 @@ func getNameFromEmail(c appengine.Context, email string) *string {
 func getFullEmail(c appengine.Context, email string) string {
 	name := getNameFromEmail(c, email)
 	if name != nil {
-		return fmt.Sprintf("%s <%s>", name, email)
+		return fmt.Sprintf("%s <%s>", *name, email)
 	}
 	return email
 }
