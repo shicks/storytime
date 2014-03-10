@@ -1,6 +1,8 @@
 package storytime
 
 import (
+	"fmt"
+
 	"appengine"
 	"appengine/datastore"
 	"appengine/memcache"
@@ -55,6 +57,15 @@ func getNameFromEmail(c appengine.Context, email string) *string {
 	return nil
 }
 
+// Adds the user's name, if available.
+func getFullEmail(c appengine.Context, email string) string {
+	name := getNameFromEmail(c, email)
+	if name != nil {
+		return fmt.Sprintf("%s <%s>", name, email)
+	}
+	return email
+}
+
 func cacheNameForEmail(c appengine.Context, name, email string) {
 	memcache.Set(c, &memcache.Item{
 		Key:   "nameforemail:" + email,
@@ -69,6 +80,12 @@ func nameFunc(c appengine.Context) func(string) string {
 			return *name
 		}
 		return email
+	}
+}
+
+func fullEmailFunc(c appengine.Context) func(string) string {
+	return func(email string) string {
+		return getFullEmail(c, email)
 	}
 }
 

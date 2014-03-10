@@ -55,40 +55,54 @@
   {{template "foot"}}
 {{end}}
 
+{{define "printStoryPage"}}
+  {{template "head"}}
+  {{template "printStory" .Story}}
+  {{template "foot"}}
+{{end}}
+
 {{/* param: Story */}}
 {{define "continue"}}
-  {{if .}}
-    <h2>Continue A Story</h2>
-    {{with .LastPart}}
-      <div class="last-story">
-        <div class="metadata">
-          <span class="written-by">Written by <span class="author">{{.Author}}</span></span>
-          <span class="written-at"><span class="time">{{.Written | fuzzy}}</span>.</span>
-        </div>
-        <div class="last-line">
-          {{.Visible}}
-        </div>
+  <h2>Continue A Story</h2>
+  {{with .LastPart}}
+    <div class="last-story">
+      <div class="metadata">
+        <span class="written-by">Written by <span class="author">{{.Author}}</span></span>
+        <span class="written-at"><span class="time">{{.Written | fuzzy}}</span>.</span>
       </div>
-    {{else}}
-      <div class="last-story">
-        <div class="metadata">
-          <span class="written-by">Story initiated by <span class="author">{{.Creator}}</span></span>
-          <span class="written-at"><span class="time">{{.Created | fuzzy}}</span>.</span>
-          <br/>
-          <span class="first-author">You are the first author.</span>
-        </div>
+      <div class="last-line">
+        {{.Visible}}
       </div>
-    {{end}}
-    <form action="/write/{{.Id}}/{{.NextId}}" method="post">
-      <textarea name="content" rows="5" cols="80" id="continue-text"
-                placeholder="Please continue the story.  Anything on the last line (up to 16 words) will be visible to the next author."></textarea>
-      <br/>
-      <span id="words-remaining">{{.WordsLeft}}</span>
-      <span id="story-will-end" class="invisible">This is the last part of the story.</span>
-      <br/>
-      <input type="submit" value="Submit">
-      <br/>
-      The next author will see: <span id="next-visible"></span>
-    </form>
+    </div>
+  {{else}}
+    <div class="last-story">
+      <div class="metadata">
+        <span class="written-by">Story initiated by <span class="author">{{.Creator}}</span></span>
+        <span class="written-at"><span class="time">{{.Created | fuzzy}}</span>.</span>
+        <br/>
+        <span class="first-author">You are the first author.</span>
+      </div>
+    </div>
+  {{end}}
+  <form action="/write/{{.Id}}/{{.NextId}}" method="post">
+    <textarea name="content" rows="5" cols="80" id="continue-text"
+              placeholder="Please continue the story.  Anything on the last line (up to 16 words) will be visible to the next author."></textarea>
+    <br/>
+    <span id="words-remaining">{{.WordsLeft}}</span>
+    <span id="story-will-end" class="invisible">This is the last part of the story.</span>
+    <br/>
+    <input type="submit" value="Submit">
+    <br/>
+    The next author will see: <span id="next-visible"></span>
+  </form>
+{{end}}
+
+{{/* param: Story */}}
+{{define "printStory"}}
+  {{range .Parts}}
+    <span class="story-part" data-author="{{.Author}}">
+      <span class="story-part-hidden">{{.Hidden}}</span>
+      <span class="story-part-visible">{{.Visible}}</span>
+    </span>
   {{end}}
 {{end}}

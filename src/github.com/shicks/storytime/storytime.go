@@ -37,7 +37,7 @@ func root(r request) response {
 	}
 
 	if u, _ := r.user(); u != nil {
-		story := currentStory(r.ctx(), *u)
+		story := currentStory(r.ctx(), u.Email)
 		if story != nil {
 			return redirect("/story/" + story.Id + "/" + story.NextId)
 		}
@@ -73,9 +73,13 @@ func beginPost(r request) response {
 	if err != nil {
 		panic(&appError{err, "Could not parse word count as an integer", http.StatusBadRequest})
 	}
-	id := newStory(r.ctx(), authors, int(words))
+	story := newStory(r, authors, int(words))
+	user, _ := r.user()
+	if user == nil || story.NextAuthor != user.Email {
+		maybeSendMail(r.ctx(), story)
+	}
 	// Now issue the redirect.
-	return redirect("/story/" + id)
+	return redirect("/story/" + story.Id)
 }
 
 func completed(r request) response {
@@ -151,6 +155,8 @@ func continueStory(r request, storyId, partId string) response {
 
 func writePart(r request, storyId, partId, text string) response {
 	story := fetchStory(r.ctx(), storyId)
+	user, _ := r.user()
+	author := story.NextAuthor
 	if story == nil {
 		return errorResponse{404, "Not Found: no such story"}
 	} else if story.NextId != partId {
@@ -158,11 +164,23 @@ func writePart(r request, storyId, partId, text string) response {
 	}
 	savePart(r.ctx(), story, text)
 	time.Sleep(500 * time.Millisecond)
+	// If the user is NOT logged in, then we need to send an email with the next part
+	if user == nil || author != user.Email {
+		nextStory := currentStory(r.ctx(), author)
+		if nextStory != nil && nextStory.NextId != partId {
+			sendMail(r.ctx(), *nextStory)
+		}
+	}
+	// Also maybe send an email to the next author of this story
+	if story.NextAuthor != author {
+		maybeSendMail(r.ctx(), *story)
+	}
 	return redirect("/")
 }
 
 func displayStory(r request, story Story) response {
-	return errorResponse{500, fmt.Sprintf("display: %v", story)}
+	story.RewriteAuthors(nameFunc(r.ctx()))
+	return execute(&printStoryPage{story})
 }
 
 func storyStatus(r request, story Story) response {

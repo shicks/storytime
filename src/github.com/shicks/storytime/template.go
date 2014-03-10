@@ -59,6 +59,10 @@ type completedPage struct {
 	// TODO(sdh): pagination
 }
 
+type printStoryPage struct {
+	Story Story
+}
+
 type beginPage struct {
 	LoginLink string
 	User      string

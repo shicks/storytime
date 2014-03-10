@@ -11,14 +11,13 @@ import (
 
 	"appengine"
 	"appengine/datastore"
-	"appengine/user"
 )
 
 // Retrieves the current story for the given user.
-func currentStory(c appengine.Context, u user.User) *Story {
+func currentStory(c appengine.Context, author string) *Story {
 	q := datastore.NewQuery("Story").
 		Filter("Complete =", false).
-		Filter("NextAuthor =", u.Email).
+		Filter("NextAuthor =", author).
 		Order("Modified"). // TODO(sdh): what about kicks/skips? - can that mis-sequence?
 		Limit(1)           // TODO(sdh): don't limit so we can count?
 	var result []Story
@@ -107,20 +106,28 @@ func putShortKey(c appengine.Context, kind string, data hasId, parent *datastore
 
 // Makes a new story and saves it to the datastore.
 // Returns the ID.
-func newStory(c appengine.Context, authors []*mail.Address, words int) string {
+func newStory(r request, authors []*mail.Address, words int) Story {
 	// TODO(sdh): incorporate names from email addresses?
 	//id := randomString(10)
 	//nextId := randomString(16)
 	//key := datastore.NewKey(c, "Story", id, 0, nil)
 	//key := datastore.NewIncompleteKey(c, "Story", nil)
-	u := user.Current(c)
+	u, _ := r.user()
+	if u == nil {
+		panic(fmt.Errorf("Must be logged in to start a new story."))
+	}
 	addrs := make([]string, len(authors))
 	parts := make([]StoryPart, 0)
+	found := false
 	for i, author := range authors {
 		if author.Name != "" {
-			putNameForEmailIfAbsent(c, author.Name, author.Address)
+			putNameForEmailIfAbsent(r.ctx(), author.Name, author.Address)
 		}
 		addrs[i] = author.Address
+		found = found || author.Address == u.Email
+	}
+	if !found {
+		panic(errorResponse{400, "Error: New stories must include yourself as an author."})
 	}
 	now := time.Now()
 	story := &Story{
@@ -134,11 +141,14 @@ func newStory(c appengine.Context, authors []*mail.Address, words int) string {
 		Authors:    addrs,
 		Words:      words,
 	}
-	key, err := putShortKey(c, "Story", story, nil, 3)
+	key, err := putShortKey(r.ctx(), "Story", story, nil, 3)
 	if err != nil {
 		panic(&appError{err, "Failed to put story in datastore", http.StatusInternalServerError})
 	}
-	return key.StringID()
+	if story.Id != key.StringID() {
+		panic(fmt.Errorf("Expected story.Id == key.StringID(): %s vs %s", story.Id, key.StringID()))
+	}
+	return *story
 }
 
 // Returns the next author in the cycle, panics if the
@@ -219,4 +229,5 @@ func clearKind(c appengine.Context, kind string) {
 
 func clearDatastore(c appengine.Context) {
 	clearKind(c, "Story")
+	clearKind(c, "UserInfo")
 }

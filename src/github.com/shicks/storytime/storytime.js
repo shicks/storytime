@@ -53,4 +53,19 @@ function lastWords(text, count) {
 
 // Prettify the "story" page
 
+var colors = ['#000000', '#98224a', '#519049', '#144566', '#2c777e',
+              '#844e2c', '#cf7208', '#b10038', '#45483f', '#8f8387'];
+var authorCount = 0;
+var authors = {};
+var parts = document.getElementsByClassName('story-part');
+for (var i = 0; i < parts.length; i++) {
+  var part = parts[i];
+  var author = part.dataset['author'];
+  if (!(author in authors)) {
+    authors[author] = colors[authorCount++ % colors.length];
+  }
+  part.style.color = authors[author];
+  part.title = 'Written by ' + author; // TODO(sdh): date?
+}
+
 })();

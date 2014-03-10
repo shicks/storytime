@@ -40,3 +40,7 @@ a:hover {
 .invisible: {
   display: none;
 }
+
+.story-part-visible {
+  font-style: italic;
+}
