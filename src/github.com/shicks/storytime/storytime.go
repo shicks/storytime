@@ -17,8 +17,6 @@ func init() {
 	http.Handle("/write/", appHandler(write))
 
 	// TODO(sdh): remove this handler in prod
-	// TODO(sdh): UNRELATED - ProdRequiredFlag<T> only has default value in local testing
-	//   (or potentially some sort of guice module that checks annotated flags only in prod)
 	http.Handle("/clear", appHandler(clearAll))
 	http.Handle("/repair", appHandler(repairAll))
 }
@@ -149,7 +147,7 @@ func story(r request) response {
 		if story.NextAuthor == u.Email {
 			return redirect("/story/" + id + "/" + story.NextId)
 		}
-		// Otherwise, if the current user is an author, display the status
+		// If not, but the current user is an author, display the status
 		for _, a := range story.Authors {
 			if a == u.Email {
 				return storyStatus(r, *story)
@@ -176,7 +174,13 @@ func continueStory(r request, storyId, partId string) response {
 	if story == nil {
 		return errorResponse{404, "Not Found: no such story"}
 	} else if story.NextId != partId {
-		return errorResponse{404, "Not Found: wrong part: " + story.NextId}
+		// If this is an out-of-date partId, redirect to the story status
+		for _, part := range story.Parts {
+			if part.Id == partId {
+				return storyStatus(r, story)
+			}
+		}
+		return errorResponse{404, "Not Found: wrong part: " + story.NextId} // notFound
 	}
 	story.RewriteAuthors(nameFunc(r.ctx()))
 	return execute(&continuePage{story})
@@ -197,10 +201,12 @@ func writePart(r request, storyId, partId, text string) response {
 	savePart(r.ctx(), story, text)
 	time.Sleep(500 * time.Millisecond)
 	// If the user is NOT logged in, then we need to send an email with the next part
+	// Also, just redirect there.
 	if user == nil || author != user.Email {
 		nextStory := currentStory(r.ctx(), author)
 		if nextStory != nil && nextStory.NextId != partId {
 			sendMail(r.ctx(), *nextStory)
+			return redirect("/story/" + nextStory.Id + "/" + nextStory.NextId)
 		}
 	}
 	// Also maybe send an email to the next author of this story

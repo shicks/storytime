@@ -1,2 +1,17 @@
 1. receive emails?
 2. kick/skip/ping/delete operations?
+3. chat/text integration?
+4. settings page (name, email (chat?) prefs, etc)
+
+
+authentication issues:
+ - would be nice to not require tying emails to a google account, since
+   many people don't use their google account as their primary email
+ - could use any story link as a login link after the part is written,
+   but this is much less secure, and in particular, security leaks are
+   completely uncontained.
+ - alternately we could use a cookie (which is similarly insecure if it's
+   not tied to something else, i.e. hashed with the ip address) or a URL,
+   and we could allow invalidating sessions...
+   - store creds for multiple IP addresses?
+   - just make email parsing work?
