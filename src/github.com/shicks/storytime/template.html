@@ -151,6 +151,7 @@
 {{define "printStoryStatus"}}
   <h2>{{.LastWritten}}</h2>
   <div class="status-created">Initiated {{.Created | fuzzy}} by {{.Creator}}</div>
+  <div class="status-authors">Authors: {{.Authors | join ", "}}</div>
   {{if .LastAuthor}}
     <div class="last-modified">Last contribution {{.Modified | fuzzy}} by {{.LastAuthor}}</div>
   {{end}}

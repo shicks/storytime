@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"net/http"
 	"reflect"
+	"strings"
 )
 
 type templateResponse struct {
@@ -42,6 +43,7 @@ var fmap = template.FuncMap{
 	"fuzzy": fuzzyTime,
 	"last":  lastStory,
 	"inc":   func(i int) int { return i + 1 },
+	"join":  func(sep string, a []string) string { return strings.Join(a, sep) },
 }
 
 func lastStory(stories []Story) *Story {

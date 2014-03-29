@@ -94,7 +94,7 @@ func (s Story) InProgressSnippet(author string) string {
 			return "\"" + strings.Trim(prefix+part.Hidden+" "+part.Visible+" ...", " \r\n") + "\""
 		}
 	}
-	return "(No parts written yet)"
+	return "(You have not written any parts yet)"
 }
 
 // Returns an InProgressStory for the given user.

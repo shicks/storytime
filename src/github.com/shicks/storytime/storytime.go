@@ -150,7 +150,7 @@ func story(r request) response {
 		// If not, but the current user is an author, display the status
 		for _, a := range story.Authors {
 			if a == u.Email {
-				return storyStatus(r, *story)
+				return storyStatus(r, *story, u.Email)
 			}
 		}
 	}
@@ -177,7 +177,7 @@ func continueStory(r request, storyId, partId string) response {
 		// If this is an out-of-date partId, redirect to the story status
 		for _, part := range story.Parts {
 			if part.Id == partId {
-				return storyStatus(r, story)
+				return storyStatus(r, *story, part.Author)
 			}
 		}
 		return errorResponse{404, "Not Found: wrong part: " + story.NextId} // notFound
@@ -221,8 +221,8 @@ func displayStory(r request, story Story) response {
 	return execute(&printStoryPage{story})
 }
 
-func storyStatus(r request, story Story) response {
-	inProgress := story.InProgress(r.userRequired().Email)
-	inProgress.RewriteAuthors(relativeNameFunc(r.ctx(), r.userRequired().Email))
+func storyStatus(r request, story Story, user string) response {
+	inProgress := story.InProgress(user)
+	inProgress.RewriteAuthors(relativeNameFunc(r.ctx(), user))
 	return execute(&statusPage{inProgress})
 }
